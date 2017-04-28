@@ -1670,15 +1670,6 @@ out_close:
 	return err;
 }
 
-void perf_evsel__close(struct perf_evsel *evsel, int ncpus, int nthreads)
-{
-	if (evsel->fd == NULL)
-		return;
-
-	perf_evsel__close_fd(evsel, ncpus, nthreads);
-	perf_evsel__free_fd(evsel);
-}
-
 int perf_evsel__open_per_cpu(struct perf_evsel *evsel,
 			     struct cpu_map *cpus)
 {
@@ -1689,6 +1680,29 @@ int perf_evsel__open_per_thread(struct perf_evsel *evsel,
 				struct thread_map *threads)
 {
 	return perf_evsel__open(evsel, NULL, threads);
+}
+
+void perf_evsel__close(struct perf_evsel *evsel, int ncpus, int nthreads)
+{
+	if (evsel->fd == NULL)
+		return;
+
+	perf_evsel__close_fd(evsel, ncpus, nthreads);
+	perf_evsel__free_fd(evsel);
+}
+
+void perf_evsel__close_per_cpu(struct perf_evsel *evsel,
+			       struct cpu_map *cpus)
+{
+	int ncpus = cpus ? cpus->nr : 1;
+	perf_evsel__close(evsel, ncpus, 1);
+}
+
+void perf_evsel__close_per_thread(struct perf_evsel *evsel,
+				  struct thread_map *threads)
+{
+	int nthreads = threads ? threads->nr : 1;
+	perf_evsel__close(evsel, 1, nthreads);
 }
 
 static int perf_evsel__parse_id_sample(const struct perf_evsel *evsel,
