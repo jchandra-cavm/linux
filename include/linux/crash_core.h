@@ -53,7 +53,6 @@ phys_addr_t paddr_vmcoreinfo_note(void);
 
 extern u32 *vmcoreinfo_note;
 extern size_t vmcoreinfo_size;
-extern size_t vmcoreinfo_max_size;
 
 int __init parse_crashkernel(char *cmdline, unsigned long long system_ram,
 		unsigned long long *crash_size, unsigned long long *crash_base);
