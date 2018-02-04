@@ -106,6 +106,10 @@ static const struct apd_device_desc vulcan_spi_desc = {
 	.setup = acpi_apd_setup,
 	.fixed_clk_rate = 133000000,
 };
+static const struct apd_device_desc thunderx2_i2c_desc = {
+	.setup = acpi_apd_setup,
+	.fixed_clk_rate = 125000000,
+};
 #endif
 
 #else
@@ -170,6 +174,7 @@ static const struct acpi_device_id acpi_apd_device_ids[] = {
 	{ "APMC0D0F", APD_ADDR(xgene_i2c_desc) },
 	{ "BRCM900D", APD_ADDR(vulcan_spi_desc) },
 	{ "CAV900D",  APD_ADDR(vulcan_spi_desc) },
+	{ "CAV9007",  APD_ADDR(thunderx2_i2c_desc) },
 #endif
 	{ }
 };
