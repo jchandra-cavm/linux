@@ -617,6 +617,18 @@ config CAVIUM_ERRATUM_30115
 
 	  If unsure, say Y.
 
+config CAVIUM_TX2_ERRATUM_219
+	bool "ThunderX2 Erratum 219: PRFM between TTBR change and ISB fails"
+	default y
+	help
+	  On Cavium ThunderX2, a load/store/prefetch instruction after a
+          change to TTBR and before the corresponding context synchronization
+          operation can cause a spurious Data Abort to be delivered to any HW
+          thread in the CPU core.
+
+	  Workaround is to drop the optimization which does this. If unsure
+	  say Y
+
 config QCOM_FALKOR_ERRATUM_1003
 	bool "Falkor E1003: Incorrect translation due to ASID change"
 	default y
