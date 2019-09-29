@@ -1696,6 +1696,8 @@ int kvm_arch_init(void *opaque)
 	if (err)
 		return err;
 
+	kvm_arm_config_emulate_vm_ops();
+
 	if (!in_hyp_mode) {
 		err = init_hyp_mode();
 		if (err)
