@@ -333,6 +333,9 @@ struct arm64_cpu_capabilities {
 	 * method is robust against being called multiple times.
 	 */
 	const struct arm64_cpu_capabilities *match_list;
+
+	/* capabilities can be forced on or off from command line */
+	const char *cmdline;
 };
 
 static inline int cpucap_default_scope(const struct arm64_cpu_capabilities *cap)

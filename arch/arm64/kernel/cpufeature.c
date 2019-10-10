@@ -43,6 +43,7 @@ unsigned int compat_elf_hwcap2 __read_mostly;
 DECLARE_BITMAP(cpu_hwcaps, ARM64_NCAPS);
 EXPORT_SYMBOL(cpu_hwcaps);
 static struct arm64_cpu_capabilities const __ro_after_init *cpu_hwcaps_ptrs[ARM64_NCAPS];
+static int __ro_after_init cap_overrides[ARM64_NCAPS];
 
 /* Need also bit for ARM64_CB_PATCH */
 DECLARE_BITMAP(boot_capabilities, ARM64_NPATCHABLE);
@@ -1244,6 +1245,39 @@ static void cpu_enable_address_auth(struct arm64_cpu_capabilities const *cap)
 }
 #endif /* CONFIG_ARM64_PTR_AUTH */
 
+static void __init parse_overrides(const char *s, const struct arm64_cpu_capabilities *t)
+{
+	int flag;
+
+	if (*s == '-')
+		flag = -1;
+	else if (*s == '+')
+		flag = 1;
+	else
+		return;
+	++s;
+
+	for(; t->matches; t++) {
+	       if (!t->cmdline || strcmp(t->cmdline, s) != 0)
+		       continue;
+		cap_overrides[t->capability] = flag;
+	}
+}
+
+static int __init early_parse_cap_overrides(char *str)
+{
+	char *s;
+
+	while ((s = strsep(&str, ",")) != NULL) {
+		parse_overrides(s, arm64_features);
+		parse_overrides(s, arm64_errata);
+	}
+	return 0;
+}
+
+early_param("arm64_cap_override", early_parse_cap_overrides);
+
+
 #ifdef CONFIG_ARM64_PSEUDO_NMI
 static bool enable_pseudo_nmi;
 
@@ -1282,6 +1316,7 @@ static const struct arm64_cpu_capabilities arm64_features[] = {
 		.sign = FTR_UNSIGNED,
 		.min_field_value = 1,
 		.cpu_enable = cpu_enable_pan,
+		.cmdline = "pan",
 	},
 #endif /* CONFIG_ARM64_PAN */
 #if defined(CONFIG_AS_LSE) && defined(CONFIG_ARM64_LSE_ATOMICS)
@@ -1294,6 +1329,7 @@ static const struct arm64_cpu_capabilities arm64_features[] = {
 		.field_pos = ID_AA64ISAR0_ATOMICS_SHIFT,
 		.sign = FTR_UNSIGNED,
 		.min_field_value = 2,
+		.cmdline = "lse",
 	},
 #endif /* CONFIG_AS_LSE && CONFIG_ARM64_LSE_ATOMICS */
 	{
@@ -1311,6 +1347,7 @@ static const struct arm64_cpu_capabilities arm64_features[] = {
 		.sys_reg = SYS_ID_AA64MMFR2_EL1,
 		.field_pos = ID_AA64MMFR2_UAO_SHIFT,
 		.min_field_value = 1,
+		.cmdline = "uao",
 		/*
 		 * We rely on stop_machine() calling uao_thread_switch() to set
 		 * UAO immediately after patching.
@@ -1331,6 +1368,7 @@ static const struct arm64_cpu_capabilities arm64_features[] = {
 		.type = ARM64_CPUCAP_STRICT_BOOT_CPU_FEATURE,
 		.matches = runs_at_el2,
 		.cpu_enable = cpu_copy_el2regs,
+		.cmdline = "vhe",
 	},
 #endif	/* CONFIG_ARM64_VHE */
 	{
@@ -1582,6 +1620,13 @@ static const struct arm64_cpu_capabilities arm64_features[] = {
 		HWCAP_CPUID_MATCH(reg, field, s, min_value)			\
 	}
 
+#define HWCAP_CAP_CMD(reg, field, s, min_value, cap_type, cap, cmd)		\
+	{									\
+		__HWCAP_CAP(#cap, cap_type, cap)				\
+		HWCAP_CPUID_MATCH(reg, field, s, min_value)			\
+		.cmdline = cmd,							\
+	}
+
 #define HWCAP_MULTI_CAP(list, cap_type, cap)					\
 	{									\
 		__HWCAP_CAP(#cap, cap_type, cap)				\
@@ -1622,7 +1667,7 @@ static const struct arm64_cpu_capabilities arm64_elf_hwcaps[] = {
 	HWCAP_CAP(SYS_ID_AA64ISAR0_EL1, ID_AA64ISAR0_SHA2_SHIFT, FTR_UNSIGNED, 1, CAP_HWCAP, KERNEL_HWCAP_SHA2),
 	HWCAP_CAP(SYS_ID_AA64ISAR0_EL1, ID_AA64ISAR0_SHA2_SHIFT, FTR_UNSIGNED, 2, CAP_HWCAP, KERNEL_HWCAP_SHA512),
 	HWCAP_CAP(SYS_ID_AA64ISAR0_EL1, ID_AA64ISAR0_CRC32_SHIFT, FTR_UNSIGNED, 1, CAP_HWCAP, KERNEL_HWCAP_CRC32),
-	HWCAP_CAP(SYS_ID_AA64ISAR0_EL1, ID_AA64ISAR0_ATOMICS_SHIFT, FTR_UNSIGNED, 2, CAP_HWCAP, KERNEL_HWCAP_ATOMICS),
+	HWCAP_CAP_CMD(SYS_ID_AA64ISAR0_EL1, ID_AA64ISAR0_ATOMICS_SHIFT, FTR_UNSIGNED, 2, CAP_HWCAP, KERNEL_HWCAP_ATOMICS, "lse"),
 	HWCAP_CAP(SYS_ID_AA64ISAR0_EL1, ID_AA64ISAR0_RDM_SHIFT, FTR_UNSIGNED, 1, CAP_HWCAP, KERNEL_HWCAP_ASIMDRDM),
 	HWCAP_CAP(SYS_ID_AA64ISAR0_EL1, ID_AA64ISAR0_SHA3_SHIFT, FTR_UNSIGNED, 1, CAP_HWCAP, KERNEL_HWCAP_SHA3),
 	HWCAP_CAP(SYS_ID_AA64ISAR0_EL1, ID_AA64ISAR0_SM3_SHIFT, FTR_UNSIGNED, 1, CAP_HWCAP, KERNEL_HWCAP_SM3),
@@ -1646,7 +1691,7 @@ static const struct arm64_cpu_capabilities arm64_elf_hwcaps[] = {
 	HWCAP_CAP(SYS_ID_AA64ISAR1_EL1, ID_AA64ISAR1_SB_SHIFT, FTR_UNSIGNED, 1, CAP_HWCAP, KERNEL_HWCAP_SB),
 	HWCAP_CAP(SYS_ID_AA64MMFR2_EL1, ID_AA64MMFR2_AT_SHIFT, FTR_UNSIGNED, 1, CAP_HWCAP, KERNEL_HWCAP_USCAT),
 #ifdef CONFIG_ARM64_SVE
-	HWCAP_CAP(SYS_ID_AA64PFR0_EL1, ID_AA64PFR0_SVE_SHIFT, FTR_UNSIGNED, ID_AA64PFR0_SVE, CAP_HWCAP, KERNEL_HWCAP_SVE),
+	HWCAP_CAP_CMD(SYS_ID_AA64PFR0_EL1, ID_AA64PFR0_SVE_SHIFT, FTR_UNSIGNED, ID_AA64PFR0_SVE, CAP_HWCAP, KERNEL_HWCAP_SVE, "sve"),
 	HWCAP_CAP(SYS_ID_AA64ZFR0_EL1, ID_AA64ZFR0_SVEVER_SHIFT, FTR_UNSIGNED, ID_AA64ZFR0_SVEVER_SVE2, CAP_HWCAP, KERNEL_HWCAP_SVE2),
 	HWCAP_CAP(SYS_ID_AA64ZFR0_EL1, ID_AA64ZFR0_AES_SHIFT, FTR_UNSIGNED, ID_AA64ZFR0_AES, CAP_HWCAP, KERNEL_HWCAP_SVEAES),
 	HWCAP_CAP(SYS_ID_AA64ZFR0_EL1, ID_AA64ZFR0_AES_SHIFT, FTR_UNSIGNED, ID_AA64ZFR0_AES_PMULL, CAP_HWCAP, KERNEL_HWCAP_SVEPMULL),
@@ -1720,28 +1765,45 @@ static bool cpus_have_elf_hwcap(const struct arm64_cpu_capabilities *cap)
 
 static void __init setup_elf_hwcaps(const struct arm64_cpu_capabilities *hwcaps)
 {
+	bool match;
+	int override;
+
 	/* We support emulation of accesses to CPU ID feature registers */
 	cpu_set_named_feature(CPUID);
-	for (; hwcaps->matches; hwcaps++)
-		if (hwcaps->matches(hwcaps, cpucap_default_scope(hwcaps)))
-			cap_set_elf_hwcap(hwcaps);
+	for (; hwcaps->matches; hwcaps++) {
+		match = hwcaps->matches(hwcaps, cpucap_default_scope(hwcaps));
+		override = cap_overrides[hwcaps->capability];
+		if ((!match && override != 1) || (match && override == -1))
+			continue;
+		cap_set_elf_hwcap(hwcaps);
+	}
 }
 
 static void update_cpu_capabilities(u16 scope_mask)
 {
-	int i;
+	int i, override;
 	const struct arm64_cpu_capabilities *caps;
+	bool match;
 
 	scope_mask &= ARM64_CPUCAP_SCOPE_MASK;
 	for (i = 0; i < ARM64_NCAPS; i++) {
 		caps = cpu_hwcaps_ptrs[i];
 		if (!caps || !(caps->type & scope_mask) ||
-		    cpus_have_cap(caps->capability) ||
-		    !caps->matches(caps, cpucap_default_scope(caps)))
+		    cpus_have_cap(caps->capability))
 			continue;
 
+		match = caps->matches(caps, cpucap_default_scope(caps));
+		override = cap_overrides[i];
+		if (!match && override != 1)
+			continue;
+		if (match && override == -1) {
+			pr_info("forced off: %s\n", caps->desc);
+			continue;
+		}
+
 		if (caps->desc)
-			pr_info("detected: %s\n", caps->desc);
+			pr_info("detected: %s%s\n", caps->desc,
+				override ? " (forced)" : "");
 		cpus_set_cap(caps->capability);
 
 		if ((scope_mask & SCOPE_BOOT_CPU) && (caps->type & SCOPE_BOOT_CPU))
@@ -1832,8 +1894,8 @@ static void __init enable_cpu_capabilities(u16 scope_mask)
  */
 static bool verify_local_cpu_caps(u16 scope_mask)
 {
-	int i;
-	bool cpu_has_cap, system_has_cap;
+	int i, override;
+	bool cpu_has_cap, system_has_cap, match;
 	const struct arm64_cpu_capabilities *caps;
 
 	scope_mask &= ARM64_CPUCAP_SCOPE_MASK;
@@ -1843,7 +1905,9 @@ static bool verify_local_cpu_caps(u16 scope_mask)
 		if (!caps || !(caps->type & scope_mask))
 			continue;
 
-		cpu_has_cap = caps->matches(caps, SCOPE_LOCAL_CPU);
+		match = caps->matches(caps, SCOPE_LOCAL_CPU);
+		override = cap_overrides[i];
+		cpu_has_cap = (match && override != -1) || (!match && override == 1);
 		system_has_cap = cpus_have_cap(caps->capability);
 
 		if (system_has_cap) {
